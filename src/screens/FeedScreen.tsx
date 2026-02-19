@@ -7,8 +7,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import type { FeedItem } from '../types/feed';
+import type { RootTabParamList } from '../types/navigation';
 import { FeedItemCard } from '../components/FeedItemCard';
 
 const MOCK_FEED_ITEMS: FeedItem[] = [
@@ -66,19 +69,28 @@ const MOCK_FEED_ITEMS: FeedItem[] = [
 ];
 
 export function FeedScreen() {
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+
   const renderItem: ListRenderItem<FeedItem> = useCallback(
     ({ item }) => (
       <FeedItemCard
         item={item}
         onPressBook={() => {
-          // Navigation to BookDetailScreen will be wired up in a later phase.
+          navigation.navigate('BookDetail', {
+            book: {
+              id: item.book.id,
+              title: item.book.title,
+              author: item.book.author,
+              coverUrl: item.book.coverUrl,
+            },
+          });
         }}
         onPressUser={() => {
           // Navigation to ProfileScreen will be wired up in a later phase.
         }}
       />
     ),
-    [],
+    [navigation],
   );
 
   const keyExtractor = useCallback((item: FeedItem) => item.id, []);
@@ -120,5 +132,4 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
 });
-
 
