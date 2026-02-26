@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { trackEvent } from './analytics';
 import { getAppUserId } from './userProfile';
 import type { ReadingStatus, Sentiment } from '../types/feed';
 
@@ -57,6 +58,15 @@ export async function followUser(authUserId: string, followeeId: string): Promis
   if (error && error.code !== '23505') {
     throw new Error(error.message);
   }
+
+  await trackEvent({
+    event: 'user_followed',
+    authUserId,
+    appUserId: followerId,
+    properties: {
+      target_user_id: followeeId,
+    },
+  });
 }
 
 export async function unfollowUser(authUserId: string, followeeId: string): Promise<void> {
@@ -71,6 +81,15 @@ export async function unfollowUser(authUserId: string, followeeId: string): Prom
   if (error) {
     throw new Error(error.message);
   }
+
+  await trackEvent({
+    event: 'user_unfollowed',
+    authUserId,
+    appUserId: followerId,
+    properties: {
+      target_user_id: followeeId,
+    },
+  });
 }
 
 export async function getSuggestedUsers(authUserId: string, limit = 20): Promise<SuggestedUser[]> {

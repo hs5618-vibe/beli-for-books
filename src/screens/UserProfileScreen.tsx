@@ -17,6 +17,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { Avatar } from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../services/analytics';
 import {
   followUser,
   getUserProfileView,
@@ -103,6 +104,23 @@ export function UserProfileScreen() {
       // Handled in loadProfile.
     });
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    trackEvent({
+      event: 'profile_viewed',
+      authUserId: user.id,
+      properties: {
+        target: 'other',
+        target_app_user_id: targetAppUserId,
+      },
+    }).catch(() => {
+      // Non-blocking analytics.
+    });
+  }, [targetAppUserId, user?.id]);
 
   async function handleFollowToggle() {
     if (!user?.id || !profile || isUpdatingFollow) {

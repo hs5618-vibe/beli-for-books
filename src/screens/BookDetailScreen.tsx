@@ -14,6 +14,7 @@ import type { RouteProp } from '@react-navigation/native';
 
 import { BookCover } from '../components/BookCover';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../services/analytics';
 import {
   getBookRatingState,
   getPairwisePrompts,
@@ -57,6 +58,23 @@ export function BookDetailScreen() {
 
   const book = route.params?.book;
   const activePrompt = useMemo(() => prompts[promptIndex], [promptIndex, prompts]);
+
+  useEffect(() => {
+    if (!book || !user?.id) {
+      return;
+    }
+
+    trackEvent({
+      event: 'book_detail_viewed',
+      authUserId: user.id,
+      properties: {
+        book_id: book.id,
+        source: 'navigation',
+      },
+    }).catch(() => {
+      // Non-blocking analytics.
+    });
+  }, [book, user?.id]);
 
   useEffect(() => {
     let isMounted = true;

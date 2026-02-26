@@ -3,6 +3,7 @@ import type { PropsWithChildren } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { trackEvent } from '../services/analytics';
 
 type AuthContextValue = {
   isLoading: boolean;
@@ -127,6 +128,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         if (data.user) {
           await ensureProfile(data.user);
+          await trackEvent({
+            event: 'account_created',
+            authUserId: data.user.id,
+            properties: {
+              provider: 'email',
+            },
+            dedupeKey: `${data.user.id}:account_created`,
+          });
         }
       },
       signOut: async () => {

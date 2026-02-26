@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -13,7 +13,8 @@ import {
 
 import { Avatar } from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
-import { getOnboardingProgress, type OnboardingProgress } from '../services/onboarding';
+import { trackEvent } from '../services/analytics';
+import type { OnboardingProgress } from '../services/onboarding';
 import { upsertRating } from '../services/ratings';
 import { getSuggestedUsers, followUser, type SuggestedUser } from '../services/social';
 import { searchBooks } from '../services/books';
@@ -31,6 +32,8 @@ const SENTIMENTS: Sentiment[] = ['Loved', 'Liked', 'Okay'];
 
 export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, onSignOut }: OnboardingScreenProps) {
   const { user } = useAuth();
+  const previousRatingsRef = useRef(0);
+  const previousFollowsRef = useRef(0);
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<BookSummary[]>([]);
@@ -49,6 +52,43 @@ export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, on
   const progressLabel = useMemo(() => {
     return `Rate ${ratingsDone}/${ratingsTarget} books • Follow ${followsDone}/${followsTarget} readers`;
   }, [followsDone, followsTarget, ratingsDone, ratingsTarget]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    if (ratingsDone >= ratingsTarget && previousRatingsRef.current < ratingsTarget) {
+      trackEvent({
+        event: 'onboarding_books_completed',
+        authUserId: user.id,
+        properties: {
+          ratings_count: ratingsDone,
+          ratings_target: ratingsTarget,
+        },
+        dedupeKey: `${user.id}:onboarding_books_completed`,
+      }).catch(() => {
+        // Non-blocking analytics.
+      });
+    }
+
+    if (followsDone >= followsTarget && previousFollowsRef.current < followsTarget) {
+      trackEvent({
+        event: 'onboarding_follows_completed',
+        authUserId: user.id,
+        properties: {
+          follows_count: followsDone,
+          follows_target: followsTarget,
+        },
+        dedupeKey: `${user.id}:onboarding_follows_completed`,
+      }).catch(() => {
+        // Non-blocking analytics.
+      });
+    }
+
+    previousRatingsRef.current = ratingsDone;
+    previousFollowsRef.current = followsDone;
+  }, [followsDone, followsTarget, ratingsDone, ratingsTarget, user?.id]);
 
   const loadSuggestions = useCallback(async () => {
     if (!user?.id) {
@@ -88,6 +128,17 @@ export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, on
     try {
       const results = await searchBooks(normalized);
       setSearchResults(results.slice(0, 8));
+      if (user?.id) {
+        await trackEvent({
+          event: 'book_searched',
+          authUserId: user.id,
+          properties: {
+            source: 'onboarding',
+            query: normalized,
+            results_count: results.length,
+          },
+        });
+      }
     } catch (error) {
       setSearchResults([]);
       setSearchError(error instanceof Error ? error.message : 'Search failed');

@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { BookSummary } from '../types/book';
 import type { ReadingStatus, Sentiment } from '../types/feed';
+import { trackEvent } from './analytics';
 import { getAppUserId } from './userProfile';
 
 export type RatingInput = {
@@ -289,6 +290,55 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
       bookId: input.book.id,
       activityType: 'StatusChanged',
       statusId,
+    });
+  }
+
+  await trackEvent({
+    event: 'book_rated',
+    authUserId: input.authUserId,
+    appUserId,
+    properties: {
+      book_id: input.book.id,
+      sentiment: input.sentiment,
+      numeric_score: numericScore,
+      has_note: Boolean(input.note?.trim()),
+      is_note_private: input.isNotePrivate,
+      reading_status: input.readingStatus ?? null,
+    },
+  });
+
+  if (input.note?.trim()) {
+    await trackEvent({
+      event: 'note_added',
+      authUserId: input.authUserId,
+      appUserId,
+      properties: {
+        book_id: input.book.id,
+        is_note_private: input.isNotePrivate,
+      },
+    });
+  }
+
+  if (input.isNotePrivate) {
+    await trackEvent({
+      event: 'note_marked_private',
+      authUserId: input.authUserId,
+      appUserId,
+      properties: {
+        book_id: input.book.id,
+      },
+    });
+  }
+
+  if (input.readingStatus) {
+    await trackEvent({
+      event: 'book_status_changed',
+      authUserId: input.authUserId,
+      appUserId,
+      properties: {
+        book_id: input.book.id,
+        reading_status: input.readingStatus,
+      },
     });
   }
 

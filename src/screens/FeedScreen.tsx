@@ -13,6 +13,7 @@ import { useNavigation, type CompositeNavigationProp } from '@react-navigation/n
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { trackEvent } from '../services/analytics';
 import { useAuth } from '../context/AuthContext';
 import { FeedItemCard } from '../components/FeedItemCard';
 import { getFeedPage } from '../services/feed';
@@ -98,6 +99,22 @@ export function FeedScreen() {
       // Error state handled by loadFeed.
     });
   }, [loadFeed]);
+
+  useEffect(() => {
+    if (!user?.id || isLoading) {
+      return;
+    }
+
+    trackEvent({
+      event: 'feed_viewed',
+      authUserId: user.id,
+      properties: {
+        visible_items: items.length,
+      },
+    }).catch(() => {
+      // Non-blocking analytics.
+    });
+  }, [isLoading, items.length, user?.id]);
 
   const renderItem: ListRenderItem<FeedItem> = useCallback(
     ({ item }) => (

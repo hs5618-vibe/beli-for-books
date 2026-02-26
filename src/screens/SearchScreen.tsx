@@ -13,6 +13,8 @@ import { useNavigation, type CompositeNavigationProp } from '@react-navigation/n
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../services/analytics';
 import { searchBooks } from '../services/books';
 import type { BookSummary } from '../types/book';
 import type { RootStackParamList, RootTabParamList } from '../types/navigation';
@@ -23,6 +25,7 @@ type SearchScreenNavigationProp = CompositeNavigationProp<
 >;
 
 export function SearchScreen() {
+  const { user } = useAuth();
   const navigation = useNavigation<SearchScreenNavigationProp>();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<BookSummary[]>([]);
@@ -55,6 +58,18 @@ export function SearchScreen() {
       }
 
       setResults(nextResults);
+
+      if (user?.id) {
+        await trackEvent({
+          event: 'book_searched',
+          authUserId: user.id,
+          properties: {
+            source: 'search',
+            query: normalizedQuery,
+            results_count: nextResults.length,
+          },
+        });
+      }
     } catch (searchError) {
       if (searchRequestIdRef.current !== requestId) {
         return;
@@ -67,7 +82,7 @@ export function SearchScreen() {
         setIsSearching(false);
       }
     }
-  }, []);
+  }, [user?.id]);
 
   const handleSearch = useCallback(async () => {
     if (!canSearch) {

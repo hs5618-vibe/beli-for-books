@@ -19,6 +19,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../services/analytics';
 import {
   getProfileDashboard,
   profileShareUrl,
@@ -116,6 +117,22 @@ export function ProfileScreen() {
       // Errors are handled in loadDashboard.
     });
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    trackEvent({
+      event: 'profile_viewed',
+      authUserId: user.id,
+      properties: {
+        target: 'self',
+      },
+    }).catch(() => {
+      // Non-blocking analytics.
+    });
+  }, [user?.id]);
 
   const rankLabel = useMemo(() => {
     if (!dashboard || dashboard.rank === null || dashboard.rankPopulation === 0) {
