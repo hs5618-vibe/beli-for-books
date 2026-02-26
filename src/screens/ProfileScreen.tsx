@@ -12,6 +12,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
@@ -23,6 +26,12 @@ import {
   type ProfileActivity,
   type ProfileDashboard,
 } from '../services/profile';
+import type { RootStackParamList, RootTabParamList } from '../types/navigation';
+
+type ProfileScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<RootTabParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 function formatRelativeTime(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
@@ -65,6 +74,7 @@ function activityLabel(activity: ProfileActivity): string {
 
 export function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
   const [dashboard, setDashboard] = useState<ProfileDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -262,14 +272,32 @@ export function ProfileScreen() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Beli Stats</Text>
           <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
+            <Pressable
+              style={styles.statItem}
+              onPress={() =>
+                navigation.navigate('Connections', {
+                  appUserId: dashboard.appUserId,
+                  kind: 'followers',
+                  title: 'Followers',
+                })
+              }
+            >
               <Text style={styles.statValue}>{dashboard.followersCount}</Text>
               <Text style={styles.statLabel}>Followers</Text>
-            </View>
-            <View style={styles.statItem}>
+            </Pressable>
+            <Pressable
+              style={styles.statItem}
+              onPress={() =>
+                navigation.navigate('Connections', {
+                  appUserId: dashboard.appUserId,
+                  kind: 'following',
+                  title: 'Following',
+                })
+              }
+            >
               <Text style={styles.statValue}>{dashboard.followingCount}</Text>
               <Text style={styles.statLabel}>Following</Text>
-            </View>
+            </Pressable>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{rankLabel}</Text>
               <Text style={styles.statLabel}>Rank</Text>

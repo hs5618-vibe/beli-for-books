@@ -12,6 +12,8 @@ import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { AuthScreen } from '../screens/AuthScreen';
+import { UserProfileScreen } from '../screens/UserProfileScreen';
+import { ConnectionsScreen } from '../screens/ConnectionsScreen';
 import { getOnboardingProgress, type OnboardingProgress } from '../services/onboarding';
 import type { RootStackParamList, RootTabParamList } from '../types/navigation';
 
@@ -151,6 +153,16 @@ function RootNavigator() {
             name="BookDetail"
             component={BookDetailScreen}
             options={{ title: 'Book' }}
+          />
+          <Stack.Screen
+            name="UserProfile"
+            component={UserProfileScreen}
+            options={{ title: 'Profile' }}
+          />
+          <Stack.Screen
+            name="Connections"
+            component={ConnectionsScreen}
+            options={{ title: 'Connections' }}
           />
         </>
       )}

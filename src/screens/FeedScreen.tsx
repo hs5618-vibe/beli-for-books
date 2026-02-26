@@ -81,7 +81,9 @@ export function FeedScreen() {
           });
         }}
         onPressUser={() => {
-          // Multi-profile navigation is next phase.
+          navigation.navigate('UserProfile', {
+            appUserId: item.user.id,
+          });
         }}
       />
     ),

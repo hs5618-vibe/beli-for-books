@@ -13,4 +13,12 @@ export type RootStackParamList = {
   BookDetail: {
     book: BookSummary;
   };
+  UserProfile: {
+    appUserId: string;
+  };
+  Connections: {
+    appUserId: string;
+    kind: 'followers' | 'following';
+    title: string;
+  };
 };
