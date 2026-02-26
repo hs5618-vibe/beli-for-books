@@ -7,12 +7,18 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import type { FeedItem } from '../types/feed';
-import type { RootTabParamList } from '../types/navigation';
+import type { RootStackParamList, RootTabParamList } from '../types/navigation';
 import { FeedItemCard } from '../components/FeedItemCard';
+
+type FeedScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<RootTabParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 const MOCK_FEED_ITEMS: FeedItem[] = [
   {
@@ -69,7 +75,7 @@ const MOCK_FEED_ITEMS: FeedItem[] = [
 ];
 
 export function FeedScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+  const navigation = useNavigation<FeedScreenNavigationProp>();
 
   const renderItem: ListRenderItem<FeedItem> = useCallback(
     ({ item }) => (
@@ -132,4 +138,3 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
 });
-

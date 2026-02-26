@@ -9,15 +9,21 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { searchBooks } from '../services/books';
 import type { BookSummary } from '../types/book';
-import type { RootTabParamList } from '../types/navigation';
+import type { RootStackParamList, RootTabParamList } from '../types/navigation';
+
+type SearchScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<RootTabParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 export function SearchScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+  const navigation = useNavigation<SearchScreenNavigationProp>();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<BookSummary[]>([]);
   const [isSearching, setIsSearching] = useState(false);

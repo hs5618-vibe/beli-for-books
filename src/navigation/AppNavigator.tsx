@@ -2,10 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
-import {
-  createBottomTabNavigator,
-  type BottomTabNavigationOptions,
-} from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
 
@@ -25,12 +22,6 @@ const ONBOARDING_KEY_PREFIX = 'onboarding-complete';
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const hiddenTabScreenOptions: BottomTabNavigationOptions = {
-  tabBarButton: () => null,
-  tabBarItemStyle: { display: 'none' },
-  tabBarStyle: { display: 'none' },
-};
-
 function MainTabsNavigator() {
   return (
     <Tab.Navigator
@@ -42,11 +33,6 @@ function MainTabsNavigator() {
       <Tab.Screen name="Feed" component={FeedScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
-      <Tab.Screen
-        name="BookDetail"
-        component={BookDetailScreen}
-        options={hiddenTabScreenOptions}
-      />
     </Tab.Navigator>
   );
 }
@@ -118,11 +104,18 @@ function RootNavigator() {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator>
       {!session ? (
-        <Stack.Screen name="Auth" component={AuthScreen} />
+        <Stack.Screen
+          name="Auth"
+          component={AuthScreen}
+          options={{ headerShown: false }}
+        />
       ) : !isOnboardingComplete ? (
-        <Stack.Screen name="Onboarding">
+        <Stack.Screen
+          name="Onboarding"
+          options={{ headerShown: false }}
+        >
           {() => (
             <OnboardingScreen
               onComplete={handleCompleteOnboarding}
@@ -135,7 +128,18 @@ function RootNavigator() {
           )}
         </Stack.Screen>
       ) : (
-        <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
+        <>
+          <Stack.Screen
+            name="MainTabs"
+            component={MainTabsNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="BookDetail"
+            component={BookDetailScreen}
+            options={{ title: 'Book' }}
+          />
+        </>
       )}
     </Stack.Navigator>
   );

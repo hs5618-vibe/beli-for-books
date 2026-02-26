@@ -24,7 +24,7 @@ import {
   type RatingRecord,
 } from '../services/ratings';
 import type { ReadingStatus, Sentiment } from '../types/feed';
-import type { RootTabParamList } from '../types/navigation';
+import type { RootStackParamList } from '../types/navigation';
 
 const SENTIMENTS: Sentiment[] = ['Loved', 'Liked', 'Okay'];
 const READING_STATUSES: ReadingStatus[] = ['WantToRead', 'Reading', 'Read'];
@@ -44,7 +44,7 @@ function readableStatus(status: ReadingStatus): string {
 
 export function BookDetailScreen() {
   const { user } = useAuth();
-  const route = useRoute<RouteProp<RootTabParamList, 'BookDetail'>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'BookDetail'>>();
   const [sentiment, setSentiment] = useState<Sentiment | undefined>();
   const [readingStatus, setReadingStatus] = useState<ReadingStatus | undefined>();
   const [note, setNote] = useState('');
