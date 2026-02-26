@@ -12,8 +12,44 @@ type ActivityRow = {
   created_at: string;
 };
 
-export async function getFeedItems(authUserId: string, limit = 30): Promise<FeedItem[]> {
-  const selfAppUserId = await getAppUserId(authUserId);
+type FeedPageParams = {
+  authUserId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+
+export type FeedPage = {
+  items: FeedItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+const DEFAULT_PAGE_SIZE = 12;
+const NOISE_WINDOW_MS = 2 * 60 * 1000;
+
+function dedupeNoisyActivities(activities: ActivityRow[]): ActivityRow[] {
+  const seenByKey = new Map<string, number>();
+  const result: ActivityRow[] = [];
+
+  for (const activity of activities) {
+    const key = `${activity.actor_user_id}:${activity.book_id}:${activity.activity_type}`;
+    const currentTimestamp = new Date(activity.created_at).getTime();
+    const previousTimestamp = seenByKey.get(key);
+
+    if (previousTimestamp !== undefined && previousTimestamp - currentTimestamp <= NOISE_WINDOW_MS) {
+      continue;
+    }
+
+    seenByKey.set(key, currentTimestamp);
+    result.push(activity);
+  }
+
+  return result;
+}
+
+export async function getFeedPage(params: FeedPageParams): Promise<FeedPage> {
+  const pageSize = params.limit ?? DEFAULT_PAGE_SIZE;
+  const selfAppUserId = await getAppUserId(params.authUserId);
 
   const followsResult = await supabase
     .from('follows')
@@ -26,15 +62,25 @@ export async function getFeedItems(authUserId: string, limit = 30): Promise<Feed
 
   const followedIds = (followsResult.data ?? []).map((row) => row.followee_id);
   if (followedIds.length === 0) {
-    return [];
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+    };
   }
 
-  const activitiesResult = await supabase
+  let activityQuery = supabase
     .from('activities')
     .select('id,actor_user_id,book_id,activity_type,rating_id,status_id,created_at')
     .in('actor_user_id', followedIds)
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(pageSize + 1);
+
+  if (params.cursor) {
+    activityQuery = activityQuery.lt('created_at', params.cursor);
+  }
+
+  const activitiesResult = await activityQuery;
 
   if (activitiesResult.error) {
     throw new Error(activitiesResult.error.message);
@@ -42,13 +88,32 @@ export async function getFeedItems(authUserId: string, limit = 30): Promise<Feed
 
   const activities = (activitiesResult.data ?? []) as ActivityRow[];
   if (activities.length === 0) {
-    return [];
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+    };
   }
 
-  const actorIds = [...new Set(activities.map((row) => row.actor_user_id))];
-  const bookIds = [...new Set(activities.map((row) => row.book_id))];
-  const ratingIds = [...new Set(activities.map((row) => row.rating_id).filter((value): value is string => Boolean(value)))];
-  const statusIds = [...new Set(activities.map((row) => row.status_id).filter((value): value is string => Boolean(value)))];
+  const hasMore = activities.length > pageSize;
+  const pageActivities = dedupeNoisyActivities(activities.slice(0, pageSize));
+
+  if (pageActivities.length === 0) {
+    return {
+      items: [],
+      nextCursor: hasMore ? activities[activities.length - 1]?.created_at ?? null : null,
+      hasMore,
+    };
+  }
+
+  const actorIds = [...new Set(pageActivities.map((row) => row.actor_user_id))];
+  const bookIds = [...new Set(pageActivities.map((row) => row.book_id))];
+  const ratingIds = [
+    ...new Set(pageActivities.map((row) => row.rating_id).filter((value): value is string => Boolean(value))),
+  ];
+  const statusIds = [
+    ...new Set(pageActivities.map((row) => row.status_id).filter((value): value is string => Boolean(value))),
+  ];
 
   const [usersResult, booksResult, ratingsResult, statusesResult] = await Promise.all([
     supabase.from('users').select('id,display_name,avatar_url').in('id', actorIds),
@@ -111,14 +176,13 @@ export async function getFeedItems(authUserId: string, limit = 30): Promise<Feed
         numericScore: row.numeric_score,
         note: row.note,
         isNotePrivate: row.is_note_private,
-        userId: row.user_id,
       },
     ]),
   );
 
   const statusesById = new Map((statusesResult.data ?? []).map((row) => [row.id, row.status]));
 
-  return activities
+  const items = pageActivities
     .map((activity) => {
       const user = usersById.get(activity.actor_user_id);
       const book = booksById.get(activity.book_id);
@@ -143,4 +207,12 @@ export async function getFeedItems(authUserId: string, limit = 30): Promise<Feed
       } as FeedItem;
     })
     .filter((item): item is FeedItem => Boolean(item));
+
+  return {
+    items,
+    hasMore,
+    nextCursor: hasMore
+      ? activities[Math.min(pageSize, activities.length) - 1]?.created_at ?? null
+      : null,
+  };
 }

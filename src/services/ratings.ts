@@ -129,7 +129,7 @@ async function upsertReadingStatus(params: {
   appUserId: string;
   bookId: string;
   readingStatus?: ReadingStatus;
-}): Promise<void> {
+}): Promise<string | undefined> {
   if (!params.readingStatus) {
     const { error: deleteError } = await supabase
       .from('book_statuses')
@@ -141,24 +141,30 @@ async function upsertReadingStatus(params: {
       throw new Error(deleteError.message);
     }
 
-    return;
+    return undefined;
   }
 
-  const { error } = await supabase.from('book_statuses').upsert(
-    {
-      user_id: params.appUserId,
-      book_id: params.bookId,
-      status: params.readingStatus,
-      updated_at: new Date().toISOString(),
-    },
-    {
-      onConflict: 'user_id,book_id',
-    },
-  );
+  const statusResponse = await supabase
+    .from('book_statuses')
+    .upsert(
+      {
+        user_id: params.appUserId,
+        book_id: params.bookId,
+        status: params.readingStatus,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'user_id,book_id',
+      },
+    )
+    .select('id')
+    .single();
 
-  if (error) {
-    throw new Error(error.message);
+  if (statusResponse.error) {
+    throw new Error(statusResponse.error.message);
   }
+
+  return statusResponse.data?.id;
 }
 
 async function writeActivity(params: {
@@ -166,12 +172,14 @@ async function writeActivity(params: {
   bookId: string;
   activityType: 'Rated' | 'StatusChanged';
   ratingId?: string;
+  statusId?: string;
 }): Promise<void> {
   const { error } = await supabase.from('activities').insert({
     actor_user_id: params.appUserId,
     book_id: params.bookId,
     activity_type: params.activityType,
     rating_id: params.ratingId ?? null,
+    status_id: params.statusId ?? null,
   });
 
   if (error) {
@@ -262,7 +270,7 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
     throw new Error(ratingResponse.error?.message ?? 'Failed to save rating');
   }
 
-  await upsertReadingStatus({
+  const statusId = await upsertReadingStatus({
     appUserId,
     bookId: input.book.id,
     readingStatus: input.readingStatus,
@@ -280,6 +288,7 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
       appUserId,
       bookId: input.book.id,
       activityType: 'StatusChanged',
+      statusId,
     });
   }
 

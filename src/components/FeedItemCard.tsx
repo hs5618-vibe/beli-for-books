@@ -28,7 +28,7 @@ export function FeedItemCard({ item, onPressBook, onPressUser }: FeedItemCardPro
     item.activityType === 'Rated'
       ? 'rated'
       : item.activityType === 'StatusChanged'
-      ? 'updated status on'
+      ? `set ${readableStatus(item.readingStatus) || 'status'} for`
       : 'added';
 
   return (
@@ -216,4 +216,3 @@ const styles = StyleSheet.create({
     color: '#4B5563',
   },
 });
-

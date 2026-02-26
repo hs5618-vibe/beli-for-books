@@ -15,7 +15,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAuth } from '../context/AuthContext';
 import { FeedItemCard } from '../components/FeedItemCard';
-import { getFeedItems } from '../services/feed';
+import { getFeedPage } from '../services/feed';
 import type { FeedItem } from '../types/feed';
 import type { RootStackParamList, RootTabParamList } from '../types/navigation';
 
@@ -30,10 +30,29 @@ export function FeedScreen() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const mergeDeduped = useCallback((current: FeedItem[], incoming: FeedItem[]): FeedItem[] => {
+    const byId = new Map<string, FeedItem>();
+
+    for (const item of current) {
+      byId.set(item.id, item);
+    }
+
+    for (const item of incoming) {
+      byId.set(item.id, item);
+    }
+
+    return [...byId.values()].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, []);
+
   const loadFeed = useCallback(
-    async (refresh = false) => {
+    async (refresh = false, cursor?: string | null) => {
       if (!user?.id) {
         setItems([]);
         setIsLoading(false);
@@ -42,22 +61,36 @@ export function FeedScreen() {
 
       if (refresh) {
         setIsRefreshing(true);
+      } else if (cursor) {
+        setIsLoadingMore(true);
       } else {
         setIsLoading(true);
       }
 
       try {
-        const nextItems = await getFeedItems(user.id);
-        setItems(nextItems);
+        const page = await getFeedPage({
+          authUserId: user.id,
+          cursor: cursor ?? null,
+        });
+
+        if (refresh || !cursor) {
+          setItems(page.items);
+        } else {
+          setItems((current) => mergeDeduped(current, page.items));
+        }
+
+        setHasMore(page.hasMore);
+        setNextCursor(page.nextCursor);
         setError(null);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Failed to load feed');
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
+        setIsLoadingMore(false);
       }
     },
-    [user?.id],
+    [mergeDeduped, user?.id],
   );
 
   useEffect(() => {
@@ -120,13 +153,24 @@ export function FeedScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => {
-              loadFeed(true).catch(() => {
+              loadFeed(true, null).catch(() => {
                 // Error state handled by loadFeed.
               });
             }}
           />
         }
+        onEndReachedThreshold={0.3}
+        onEndReached={() => {
+          if (!hasMore || !nextCursor || isLoadingMore || isRefreshing) {
+            return;
+          }
+
+          loadFeed(false, nextCursor).catch(() => {
+            // Error state handled by loadFeed.
+          });
+        }}
         showsVerticalScrollIndicator={false}
+        ListFooterComponent={isLoadingMore ? <ActivityIndicator color="#111827" /> : null}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
