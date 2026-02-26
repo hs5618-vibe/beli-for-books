@@ -246,7 +246,44 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
 
   await ensureBook(input.book);
 
+  const normalizedNote = input.note?.trim() || null;
+
+  const [existingRatingResult, existingStatusResult] = await Promise.all([
+    supabase
+      .from('ratings')
+      .select('sentiment,numeric_score,note,is_note_private')
+      .eq('user_id', appUserId)
+      .eq('book_id', input.book.id)
+      .maybeSingle(),
+    supabase
+      .from('book_statuses')
+      .select('status')
+      .eq('user_id', appUserId)
+      .eq('book_id', input.book.id)
+      .maybeSingle(),
+  ]);
+
+  if (existingRatingResult.error) {
+    throw new Error(existingRatingResult.error.message);
+  }
+
+  if (existingStatusResult.error) {
+    throw new Error(existingStatusResult.error.message);
+  }
+
   const numericScore = await deriveNumericScore(appUserId, input.sentiment, input.book.id);
+  const previousRating = existingRatingResult.data;
+  const previousStatus = existingStatusResult.data?.status;
+  const nextStatus = input.readingStatus;
+
+  const ratingChanged =
+    !previousRating ||
+    previousRating.sentiment !== input.sentiment ||
+    previousRating.is_note_private !== input.isNotePrivate ||
+    (previousRating.note ?? null) !== normalizedNote ||
+    previousRating.numeric_score !== numericScore;
+
+  const statusChanged = (previousStatus ?? undefined) !== nextStatus;
 
   const ratingResponse = await supabase
     .from('ratings')
@@ -256,7 +293,7 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
         book_id: input.book.id,
         sentiment: input.sentiment,
         numeric_score: numericScore,
-        note: input.note ?? null,
+        note: normalizedNote,
         is_note_private: input.isNotePrivate,
         updated_at: new Date().toISOString(),
       },
@@ -277,14 +314,16 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
     readingStatus: input.readingStatus,
   });
 
-  await writeActivity({
-    appUserId,
-    bookId: input.book.id,
-    activityType: 'Rated',
-    ratingId: ratingResponse.data.id,
-  });
+  if (ratingChanged) {
+    await writeActivity({
+      appUserId,
+      bookId: input.book.id,
+      activityType: 'Rated',
+      ratingId: ratingResponse.data.id,
+    });
+  }
 
-  if (input.readingStatus) {
+  if (statusChanged) {
     await writeActivity({
       appUserId,
       bookId: input.book.id,
@@ -293,21 +332,23 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
     });
   }
 
-  await trackEvent({
-    event: 'book_rated',
-    authUserId: input.authUserId,
-    appUserId,
-    properties: {
-      book_id: input.book.id,
-      sentiment: input.sentiment,
-      numeric_score: numericScore,
-      has_note: Boolean(input.note?.trim()),
-      is_note_private: input.isNotePrivate,
-      reading_status: input.readingStatus ?? null,
-    },
-  });
+  if (ratingChanged) {
+    await trackEvent({
+      event: 'book_rated',
+      authUserId: input.authUserId,
+      appUserId,
+      properties: {
+        book_id: input.book.id,
+        sentiment: input.sentiment,
+        numeric_score: numericScore,
+        has_note: Boolean(normalizedNote),
+        is_note_private: input.isNotePrivate,
+        reading_status: input.readingStatus ?? null,
+      },
+    });
+  }
 
-  if (input.note?.trim()) {
+  if (ratingChanged && normalizedNote) {
     await trackEvent({
       event: 'note_added',
       authUserId: input.authUserId,
@@ -319,7 +360,7 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
     });
   }
 
-  if (input.isNotePrivate) {
+  if (ratingChanged && input.isNotePrivate) {
     await trackEvent({
       event: 'note_marked_private',
       authUserId: input.authUserId,
@@ -330,14 +371,15 @@ export async function upsertRating(input: RatingInput): Promise<RatingRecord> {
     });
   }
 
-  if (input.readingStatus) {
+  if (statusChanged) {
     await trackEvent({
       event: 'book_status_changed',
       authUserId: input.authUserId,
       appUserId,
       properties: {
         book_id: input.book.id,
-        reading_status: input.readingStatus,
+        previous_status: previousStatus ?? null,
+        reading_status: input.readingStatus ?? null,
       },
     });
   }
