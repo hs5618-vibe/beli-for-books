@@ -12,9 +12,11 @@ import {
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 
+import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../services/analytics';
+import { getBookDetailInsights, type BookDetailInsights } from '../services/bookDetail';
 import {
   getBookRatingState,
   getPairwisePrompts,
@@ -43,6 +45,41 @@ function readableStatus(status: ReadingStatus): string {
   }
 }
 
+function formatTimeAgo(isoDate: string): string {
+  const created = new Date(isoDate).getTime();
+  const now = Date.now();
+  const diffMs = now - created;
+
+  const diffMinutes = Math.round(diffMs / (1000 * 60));
+  if (diffMinutes < 1) return 'just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  const diffWeeks = Math.round(diffDays / 7);
+  return `${diffWeeks}w ago`;
+}
+
+function activityLabel(params: {
+  activityType: 'Rated' | 'StatusChanged' | 'Added';
+  sentiment?: Sentiment;
+  readingStatus?: ReadingStatus;
+}): string {
+  if (params.activityType === 'Rated') {
+    return params.sentiment ? `rated ${params.sentiment}` : 'rated';
+  }
+
+  if (params.activityType === 'StatusChanged') {
+    return params.readingStatus ? `set status to ${readableStatus(params.readingStatus)}` : 'updated status';
+  }
+
+  return 'added';
+}
+
 export function BookDetailScreen() {
   const { user } = useAuth();
   const route = useRoute<RouteProp<RootStackParamList, 'BookDetail'>>();
@@ -55,9 +92,52 @@ export function BookDetailScreen() {
   const [savedRating, setSavedRating] = useState<RatingRecord | null>(null);
   const [prompts, setPrompts] = useState<PairwiseComparisonPrompt[]>([]);
   const [promptIndex, setPromptIndex] = useState(0);
+  const [insights, setInsights] = useState<BookDetailInsights | null>(null);
+  const [isInsightsLoading, setIsInsightsLoading] = useState(true);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
 
   const book = route.params?.book;
   const activePrompt = useMemo(() => prompts[promptIndex], [promptIndex, prompts]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadInsights() {
+      if (!book || !user?.id) {
+        return;
+      }
+
+      setIsInsightsLoading(true);
+
+      try {
+        const nextInsights = await getBookDetailInsights(user.id, book.id);
+        if (!isMounted) {
+          return;
+        }
+
+        setInsights(nextInsights);
+        setInsightsError(null);
+      } catch (loadError) {
+        if (!isMounted) {
+          return;
+        }
+
+        setInsightsError(loadError instanceof Error ? loadError.message : 'Failed to load book activity');
+      } finally {
+        if (isMounted) {
+          setIsInsightsLoading(false);
+        }
+      }
+    }
+
+    loadInsights().catch(() => {
+      // Handled inside loadInsights.
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [book, user?.id]);
 
   useEffect(() => {
     if (!book || !user?.id) {
@@ -168,6 +248,9 @@ export function BookDetailScreen() {
       setSavedRating(rating);
       setPrompts(nextPrompts);
       setPromptIndex(0);
+      const refreshedInsights = await getBookDetailInsights(user.id, book.id);
+      setInsights(refreshedInsights);
+      setInsightsError(null);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Failed to save rating');
     } finally {
@@ -211,6 +294,55 @@ export function BookDetailScreen() {
             <Text style={styles.title}>{book.title}</Text>
             <Text style={styles.author}>{book.author}</Text>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Average Rating</Text>
+          {isInsightsLoading ? (
+            <Text style={styles.helperText}>Loading book stats...</Text>
+          ) : insights ? (
+            <>
+              <Text style={styles.scoreValue}>
+                {insights.averageScore !== null ? `${insights.averageScore.toFixed(1)} / 10` : 'No ratings yet'}
+              </Text>
+              <Text style={styles.helperText}>{insights.ratingsCount} ratings</Text>
+            </>
+          ) : (
+            <Text style={styles.helperText}>No stats available yet.</Text>
+          )}
+          {insightsError ? <Text style={styles.errorText}>{insightsError}</Text> : null}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>From People You Follow</Text>
+          {isInsightsLoading ? (
+            <Text style={styles.helperText}>Loading activity...</Text>
+          ) : !insights || insights.followedActivity.length === 0 ? (
+            <Text style={styles.helperText}>No activity from followed readers on this book yet.</Text>
+          ) : (
+            insights.followedActivity.map((activity) => (
+              <View
+                key={activity.id}
+                style={styles.followedActivityRow}
+              >
+                <Avatar
+                  name={activity.user.displayName}
+                  uri={activity.user.avatarUrl}
+                  size={30}
+                />
+                <View style={styles.followedActivityTextWrap}>
+                  <Text style={styles.followedActivityText}>
+                    {activity.user.displayName} {activityLabel(activity)}
+                    {activity.numericScore !== undefined ? ` (${activity.numericScore.toFixed(1)})` : ''}
+                  </Text>
+                  {activity.notePreview ? (
+                    <Text style={styles.followedActivityNote}>“{activity.notePreview}”</Text>
+                  ) : null}
+                  <Text style={styles.followedActivityTime}>{formatTimeAgo(activity.createdAt)}</Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.section}>
@@ -369,6 +501,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
+  helperText: {
+    color: '#6B7280',
+    fontSize: 13,
+  },
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -445,6 +581,32 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
+  },
+  followedActivityRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  followedActivityTextWrap: {
+    flex: 1,
+  },
+  followedActivityText: {
+    color: '#111827',
+    fontSize: 13,
+  },
+  followedActivityNote: {
+    marginTop: 3,
+    color: '#4B5563',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  followedActivityTime: {
+    marginTop: 3,
+    color: '#6B7280',
+    fontSize: 11,
   },
   comparisonText: {
     fontSize: 14,
