@@ -1,32 +1,52 @@
 import type { BookSummary } from '../types/book';
 
-const MOCK_SEARCH_BOOKS: BookSummary[] = [
-  {
-    id: 'book-1',
-    title: 'Tomorrow, and Tomorrow, and Tomorrow',
-    author: 'Gabrielle Zevin',
-  },
-  {
-    id: 'book-2',
-    title: 'The Thursday Murder Club',
-    author: 'Richard Osman',
-  },
-  {
-    id: 'book-3',
-    title: 'The Rabbit Hutch',
-    author: 'Tess Gunty',
-  },
-  {
-    id: 'book-4',
-    title: 'Piranesi',
-    author: 'Susanna Clarke',
-  },
-  {
-    id: 'book-5',
-    title: 'The Secret History',
-    author: 'Donna Tartt',
-  },
-];
+type GoogleBooksResponse = {
+  items?: Array<{
+    id: string;
+    volumeInfo?: {
+      title?: string;
+      authors?: string[];
+      imageLinks?: {
+        thumbnail?: string;
+        smallThumbnail?: string;
+      };
+    };
+  }>;
+};
+
+const GOOGLE_BOOKS_API_BASE_URL = 'https://www.googleapis.com/books/v1/volumes';
+const GOOGLE_BOOKS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+
+function normalizeCoverUrl(url?: string): string | undefined {
+  if (!url) {
+    return undefined;
+  }
+
+  return url.replace(/^http:\/\//i, 'https://');
+}
+
+function mapGoogleBookToSummary(item: NonNullable<GoogleBooksResponse['items']>[number]): BookSummary | null {
+  if (!item.id) {
+    return null;
+  }
+
+  const title = item.volumeInfo?.title?.trim();
+  if (!title) {
+    return null;
+  }
+
+  const author = item.volumeInfo?.authors?.join(', ')?.trim() || 'Unknown Author';
+  const coverUrl = normalizeCoverUrl(
+    item.volumeInfo?.imageLinks?.thumbnail ?? item.volumeInfo?.imageLinks?.smallThumbnail,
+  );
+
+  return {
+    id: item.id,
+    title,
+    author,
+    coverUrl,
+  };
+}
 
 export async function searchBooks(query: string): Promise<BookSummary[]> {
   const normalized = query.trim().toLowerCase();
@@ -34,8 +54,28 @@ export async function searchBooks(query: string): Promise<BookSummary[]> {
     return [];
   }
 
-  return MOCK_SEARCH_BOOKS.filter((book) => {
-    const haystack = `${book.title} ${book.author}`.toLowerCase();
-    return haystack.includes(normalized);
+  const params = new URLSearchParams({
+    q: query.trim(),
+    maxResults: '20',
+    printType: 'books',
+    orderBy: 'relevance',
+    projection: 'lite',
   });
+
+  if (GOOGLE_BOOKS_API_KEY) {
+    params.set('key', GOOGLE_BOOKS_API_KEY);
+  }
+
+  const response = await fetch(`${GOOGLE_BOOKS_API_BASE_URL}?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error(`Book search failed (${response.status})`);
+  }
+
+  const payload = (await response.json()) as GoogleBooksResponse;
+  const items = payload.items ?? [];
+
+  return items
+    .map(mapGoogleBookToSummary)
+    .filter((book): book is BookSummary => Boolean(book));
 }

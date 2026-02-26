@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   ListRenderItem,
@@ -21,20 +21,77 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<BookSummary[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const searchRequestIdRef = useRef(0);
 
   const canSearch = useMemo(() => query.trim().length > 0, [query]);
 
-  const handleSearch = useCallback(async () => {
-    if (!canSearch) {
+  const runSearch = useCallback(async (targetQuery: string) => {
+    const requestId = searchRequestIdRef.current + 1;
+    searchRequestIdRef.current = requestId;
+
+    const normalizedQuery = targetQuery.trim();
+    if (!normalizedQuery) {
       setResults([]);
+      setError(null);
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
-    const nextResults = await searchBooks(query);
-    setResults(nextResults);
-    setIsSearching(false);
-  }, [canSearch, query]);
+    setError(null);
+
+    try {
+      const nextResults = await searchBooks(normalizedQuery);
+
+      if (searchRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      setResults(nextResults);
+    } catch (searchError) {
+      if (searchRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      setResults([]);
+      setError(searchError instanceof Error ? searchError.message : 'Search failed');
+    } finally {
+      if (searchRequestIdRef.current === requestId) {
+        setIsSearching(false);
+      }
+    }
+  }, []);
+
+  const handleSearch = useCallback(async () => {
+    if (!canSearch) {
+      setResults([]);
+      setError(null);
+      return;
+    }
+
+    await runSearch(query);
+  }, [canSearch, query, runSearch]);
+
+  useEffect(() => {
+    if (!canSearch) {
+      searchRequestIdRef.current += 1;
+      setResults([]);
+      setError(null);
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      runSearch(query).catch(() => {
+        // Errors are handled in runSearch.
+      });
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [canSearch, query, runSearch]);
 
   const renderItem: ListRenderItem<BookSummary> = useCallback(
     ({ item }) => (
@@ -77,9 +134,12 @@ export function SearchScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         ListEmptyComponent={
-          <Text style={styles.emptyState}>
-            {canSearch ? 'No books found yet.' : 'Search for a book to rate.'}
-          </Text>
+          <View>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <Text style={styles.emptyState}>
+              {canSearch ? 'No books found yet.' : 'Search for a book to rate.'}
+            </Text>
+          </View>
         }
       />
     </SafeAreaView>
@@ -149,5 +209,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     color: '#6B7280',
+  },
+  errorText: {
+    textAlign: 'center',
+    color: '#B91C1C',
+    marginTop: 8,
+    marginBottom: 2,
   },
 });
