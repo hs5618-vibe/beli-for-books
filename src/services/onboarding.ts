@@ -2,7 +2,7 @@ import { getAppUserId } from './userProfile';
 import { supabase } from '../lib/supabase';
 
 export const ONBOARDING_RATINGS_TARGET = 5;
-export const ONBOARDING_FOLLOWS_TARGET = 5;
+export const ONBOARDING_FOLLOWS_TARGET = 0;
 
 export type OnboardingProgress = {
   ratingsCount: number;
@@ -33,15 +33,15 @@ export async function getOnboardingProgress(authUserId: string): Promise<Onboard
   if (followsResult.error) {
     throw new Error(followsResult.error.message);
   }
-
   const ratingsCount = ratingsResult.count ?? 0;
   const followingCount = followsResult.count ?? 0;
+  const effectiveFollowsTarget = ONBOARDING_FOLLOWS_TARGET;
 
   return {
     ratingsCount,
     followingCount,
     ratingsTarget: ONBOARDING_RATINGS_TARGET,
-    followsTarget: ONBOARDING_FOLLOWS_TARGET,
-    isComplete: ratingsCount >= ONBOARDING_RATINGS_TARGET && followingCount >= ONBOARDING_FOLLOWS_TARGET,
+    followsTarget: effectiveFollowsTarget,
+    isComplete: ratingsCount >= ONBOARDING_RATINGS_TARGET && followingCount >= effectiveFollowsTarget,
   };
 }

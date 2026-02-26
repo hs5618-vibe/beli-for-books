@@ -50,8 +50,8 @@ export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, on
   const isComplete = progress?.isComplete ?? false;
 
   const progressLabel = useMemo(() => {
-    return `Rate ${ratingsDone}/${ratingsTarget} books • Follow ${followsDone}/${followsTarget} readers`;
-  }, [followsDone, followsTarget, ratingsDone, ratingsTarget]);
+    return `Rate ${ratingsDone}/${ratingsTarget} books`;
+  }, [ratingsDone, ratingsTarget]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -72,7 +72,7 @@ export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, on
       });
     }
 
-    if (followsDone >= followsTarget && previousFollowsRef.current < followsTarget) {
+    if (followsTarget > 0 && followsDone >= followsTarget && previousFollowsRef.current < followsTarget) {
       trackEvent({
         event: 'onboarding_follows_completed',
         authUserId: user.id,
@@ -238,7 +238,7 @@ export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, on
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Text style={styles.title}>Welcome to Beli Books</Text>
-        <Text style={styles.subtitle}>Complete onboarding to unlock your full feed.</Text>
+        <Text style={styles.subtitle}>Rate 5 books to unlock your full feed.</Text>
 
         <View style={styles.progressCard}>
           <Text style={styles.progressTitle}>Progress</Text>
@@ -273,7 +273,7 @@ export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, on
         </View>
 
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>2) Follow readers</Text>
+          <Text style={styles.sectionTitle}>2) Follow readers (Optional)</Text>
           {isLoadingSuggestions ? (
             <ActivityIndicator
               size="small"
@@ -299,7 +299,7 @@ export function OnboardingScreen({ progress, errorMessage, onRefreshProgress, on
           style={[styles.primaryButton, !isComplete && styles.primaryButtonDisabled]}
         >
           <Text style={styles.primaryButtonLabel}>
-            {isComplete ? 'Onboarding complete - opening app...' : 'Complete targets to continue'}
+            {isComplete ? 'Onboarding complete - opening app...' : 'Rate books to continue'}
           </Text>
         </Pressable>
 
