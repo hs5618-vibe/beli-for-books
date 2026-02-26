@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -13,11 +12,10 @@ import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { AuthScreen } from '../screens/AuthScreen';
+import { getOnboardingProgress, type OnboardingProgress } from '../services/onboarding';
 import type { RootStackParamList, RootTabParamList } from '../types/navigation';
 
 enableScreens();
-
-const ONBOARDING_KEY_PREFIX = 'onboarding-complete';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -40,7 +38,8 @@ function MainTabsNavigator() {
 function RootNavigator() {
   const { isLoading, session, user, signOut } = useAuth();
   const [isOnboardingLoading, setIsOnboardingLoading] = useState(true);
-  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress | null>(null);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -48,21 +47,32 @@ function RootNavigator() {
     async function loadOnboardingState() {
       if (!user) {
         if (isMounted) {
-          setIsOnboardingComplete(false);
+          setOnboardingProgress(null);
+          setOnboardingError(null);
           setIsOnboardingLoading(false);
         }
         return;
       }
 
-      const key = `${ONBOARDING_KEY_PREFIX}:${user.id}`;
-      const value = await AsyncStorage.getItem(key);
+      try {
+        const progress = await getOnboardingProgress(user.id);
+        if (!isMounted) {
+          return;
+        }
 
-      if (!isMounted) {
-        return;
+        setOnboardingProgress(progress);
+        setOnboardingError(null);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setOnboardingError(error instanceof Error ? error.message : 'Failed to load onboarding');
+      } finally {
+        if (isMounted) {
+          setIsOnboardingLoading(false);
+        }
       }
-
-      setIsOnboardingComplete(value === 'true');
-      setIsOnboardingLoading(false);
     }
 
     setIsOnboardingLoading(true);
@@ -71,7 +81,8 @@ function RootNavigator() {
         return;
       }
 
-      setIsOnboardingComplete(false);
+      setOnboardingProgress(null);
+      setOnboardingError('Failed to load onboarding');
       setIsOnboardingLoading(false);
     });
 
@@ -80,14 +91,14 @@ function RootNavigator() {
     };
   }, [user]);
 
-  async function handleCompleteOnboarding() {
+  async function refreshOnboardingProgress() {
     if (!user) {
       return;
     }
 
-    const key = `${ONBOARDING_KEY_PREFIX}:${user.id}`;
-    await AsyncStorage.setItem(key, 'true');
-    setIsOnboardingComplete(true);
+    const progress = await getOnboardingProgress(user.id);
+    setOnboardingProgress(progress);
+    setOnboardingError(null);
   }
 
   const showLoading = isLoading || isOnboardingLoading;
@@ -111,14 +122,16 @@ function RootNavigator() {
           component={AuthScreen}
           options={{ headerShown: false }}
         />
-      ) : !isOnboardingComplete ? (
+      ) : !onboardingProgress?.isComplete ? (
         <Stack.Screen
           name="Onboarding"
           options={{ headerShown: false }}
         >
           {() => (
             <OnboardingScreen
-              onComplete={handleCompleteOnboarding}
+              errorMessage={onboardingError}
+              progress={onboardingProgress}
+              onRefreshProgress={() => refreshOnboardingProgress()}
               onSignOut={() => {
                 signOut().catch(() => {
                   // No-op for now; auth screen will expose sign-in path anyway.

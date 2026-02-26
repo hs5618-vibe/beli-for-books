@@ -1,7 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   ListRenderItem,
+  RefreshControl,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -11,71 +13,58 @@ import { useNavigation, type CompositeNavigationProp } from '@react-navigation/n
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { useAuth } from '../context/AuthContext';
+import { FeedItemCard } from '../components/FeedItemCard';
+import { getFeedItems } from '../services/feed';
 import type { FeedItem } from '../types/feed';
 import type { RootStackParamList, RootTabParamList } from '../types/navigation';
-import { FeedItemCard } from '../components/FeedItemCard';
 
 type FeedScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<RootTabParamList>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-const MOCK_FEED_ITEMS: FeedItem[] = [
-  {
-    id: '1',
-    createdAt: new Date().toISOString(),
-    activityType: 'Rated',
-    sentiment: 'Loved',
-    numericScore: 9.2,
-    notePreview: 'One of the most moving character studies I have read in years.',
-    readingStatus: 'Read',
-    user: {
-      id: 'user-1',
-      displayName: 'Sarah Lee',
-    },
-    book: {
-      id: 'book-1',
-      title: 'Tomorrow, and Tomorrow, and Tomorrow',
-      author: 'Gabrielle Zevin',
-    },
-  },
-  {
-    id: '2',
-    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    activityType: 'Rated',
-    sentiment: 'Liked',
-    numericScore: 7.5,
-    readingStatus: 'Reading',
-    notePreview: 'Cozy, atmospheric, and exactly what I wanted before bed.',
-    user: {
-      id: 'user-2',
-      displayName: 'Maya Patel',
-    },
-    book: {
-      id: 'book-2',
-      title: 'The Thursday Murder Club',
-      author: 'Richard Osman',
-    },
-  },
-  {
-    id: '3',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    activityType: 'StatusChanged',
-    readingStatus: 'WantToRead',
-    user: {
-      id: 'user-3',
-      displayName: 'Alex Kim',
-    },
-    book: {
-      id: 'book-3',
-      title: 'The Rabbit Hutch',
-      author: 'Tess Gunty',
-    },
-  },
-];
-
 export function FeedScreen() {
+  const { user } = useAuth();
   const navigation = useNavigation<FeedScreenNavigationProp>();
+  const [items, setItems] = useState<FeedItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadFeed = useCallback(
+    async (refresh = false) => {
+      if (!user?.id) {
+        setItems([]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (refresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      try {
+        const nextItems = await getFeedItems(user.id);
+        setItems(nextItems);
+        setError(null);
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load feed');
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [user?.id],
+  );
+
+  useEffect(() => {
+    loadFeed().catch(() => {
+      // Error state handled by loadFeed.
+    });
+  }, [loadFeed]);
 
   const renderItem: ListRenderItem<FeedItem> = useCallback(
     ({ item }) => (
@@ -92,7 +81,7 @@ export function FeedScreen() {
           });
         }}
         onPressUser={() => {
-          // Navigation to ProfileScreen will be wired up in a later phase.
+          // Multi-profile navigation is next phase.
         }}
       />
     ),
@@ -100,6 +89,19 @@ export function FeedScreen() {
   );
 
   const keyExtractor = useCallback((item: FeedItem) => item.id, []);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator
+            size="large"
+            color="#111827"
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -109,10 +111,28 @@ export function FeedScreen() {
 
       <FlatList
         contentContainerStyle={styles.listContent}
-        data={MOCK_FEED_ITEMS}
+        data={items}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => {
+              loadFeed(true).catch(() => {
+                // Error state handled by loadFeed.
+              });
+            }}
+          />
+        }
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <Text style={styles.emptyText}>
+              Follow at least 5 users in onboarding to start seeing activity here.
+            </Text>
+          </View>
+        }
       />
     </SafeAreaView>
   );
@@ -136,5 +156,24 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 16,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyWrap: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  emptyText: {
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#B91C1C',
+    textAlign: 'center',
+    marginBottom: 6,
   },
 });
