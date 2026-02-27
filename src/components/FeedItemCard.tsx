@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { FeedItem } from '../types/feed';
 import { Avatar } from './Avatar';
 import { BookCover } from './BookCover';
+import { TasteMatchBadge } from './TasteMatchBadge';
 
 type FeedItemCardProps = {
   item: FeedItem;
@@ -43,7 +44,10 @@ export function FeedItemCard({ item, onPressBook, onPressUser }: FeedItemCardPro
           size={32}
         />
         <View style={styles.headerTextContainer}>
-          <Text style={styles.userName}>{item.user.displayName}</Text>
+          <View style={styles.userRow}>
+            <Text style={styles.userName}>{item.user.displayName}</Text>
+            <TasteMatchBadge percentage={item.user.tasteMatchPercentage ?? null} />
+          </View>
           <Text style={styles.activityText}>
             {subtitle} · {formatTimeAgo(item.createdAt)}
           </Text>
@@ -154,6 +158,13 @@ const styles = StyleSheet.create({
   },
   headerTextContainer: {
     marginLeft: 10,
+    flex: 1,
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   userName: {
     fontSize: 14,

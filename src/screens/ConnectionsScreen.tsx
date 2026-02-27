@@ -15,6 +15,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { Avatar } from '../components/Avatar';
+import { TasteMatchBadge } from '../components/TasteMatchBadge';
 import { useAuth } from '../context/AuthContext';
 import { followUser, getConnections, unfollowUser, type ConnectionUser } from '../services/social';
 import type { RootStackParamList, RootTabParamList } from '../types/navigation';
@@ -94,7 +95,10 @@ export function ConnectionsScreen() {
     >
       <View style={styles.leftBlock}>
         <Avatar name={item.displayName} uri={item.avatarUrl} size={34} />
-        <Text style={styles.name}>{item.displayName}</Text>
+        <View style={styles.nameWrap}>
+          <Text style={styles.name}>{item.displayName}</Text>
+          <TasteMatchBadge percentage={item.tasteMatchPercentage} />
+        </View>
       </View>
 
       <Pressable
@@ -145,7 +149,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  leftBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  leftBlock: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 },
+  nameWrap: { gap: 4, flex: 1 },
   name: { color: '#111827', fontSize: 14, fontWeight: '600' },
   followButton: {
     backgroundColor: '#111827',

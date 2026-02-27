@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { trackEvent } from './analytics';
+import { getTasteMatchBetweenAppUsers, getTasteMatchMapForUser } from './tasteMatch';
 import { getAppUserId } from './userProfile';
 import type { ReadingStatus, Sentiment } from '../types/feed';
 
@@ -35,6 +36,8 @@ export type UserProfileView = {
   booksReadCount: number;
   booksWantToTryCount: number;
   isFollowing: boolean;
+  tasteMatchPercentage: number | null;
+  tasteMatchOverlapCount: number;
   recentActivity: SocialActivity[];
 };
 
@@ -43,6 +46,7 @@ export type ConnectionUser = {
   displayName: string;
   avatarUrl?: string;
   isFollowing: boolean;
+  tasteMatchPercentage: number | null;
 };
 
 export async function followUser(authUserId: string, followeeId: string): Promise<void> {
@@ -209,6 +213,8 @@ export async function getUserProfileView(
     throw new Error(relationResult.error.message);
   }
 
+  const tasteMatch = await getTasteMatchBetweenAppUsers(viewerAppUserId, targetAppUserId);
+
   const activityResult = await supabase
     .from('activities')
     .select(
@@ -254,6 +260,8 @@ export async function getUserProfileView(
     booksReadCount: readCount,
     booksWantToTryCount: wantCount,
     isFollowing: Boolean(relationResult.data),
+    tasteMatchPercentage: tasteMatch.percentage,
+    tasteMatchOverlapCount: tasteMatch.overlapCount,
     recentActivity,
   };
 }
@@ -308,11 +316,13 @@ export async function getConnections(
   }
 
   const followingSet = new Set((followingResult.data ?? []).map((row) => row.followee_id));
+  const tasteMatchMap = await getTasteMatchMapForUser(authUserId, userIds);
 
   return (usersResult.data ?? []).map((row) => ({
     id: row.id,
     displayName: row.display_name,
     avatarUrl: row.avatar_url ?? undefined,
     isFollowing: followingSet.has(row.id),
+    tasteMatchPercentage: tasteMatchMap.get(row.id)?.percentage ?? null,
   }));
 }

@@ -1,5 +1,6 @@
 import type { FeedItem, FeedItemBook, FeedItemUser } from '../types/feed';
 import { supabase } from '../lib/supabase';
+import { getTasteMatchMapForUser } from './tasteMatch';
 import { getAppUserId } from './userProfile';
 
 type ActivityRow = {
@@ -155,6 +156,14 @@ export async function getFeedPage(params: FeedPageParams): Promise<FeedPage> {
       },
     ]),
   );
+
+  const tasteMatchMap = await getTasteMatchMapForUser(params.authUserId, actorIds);
+  for (const [userId, user] of usersById.entries()) {
+    usersById.set(userId, {
+      ...user,
+      tasteMatchPercentage: tasteMatchMap.get(userId)?.percentage ?? null,
+    });
+  }
 
   const booksById = new Map<string, FeedItemBook>(
     (booksResult.data ?? []).map((row) => [

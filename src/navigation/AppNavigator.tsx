@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
+import { Ionicons } from '@expo/vector-icons';
 
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { BookDetailScreen } from '../screens/BookDetailScreen';
@@ -26,9 +27,40 @@ function MainTabsNavigator() {
   return (
     <Tab.Navigator
       initialRouteName="Feed"
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerTitleAlign: 'center',
-      }}
+        tabBarActiveTintColor: '#111827',
+        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarIcon: ({ color, size }) => {
+          if (route.name === 'Feed') {
+            return (
+              <Ionicons
+                name="newspaper-outline"
+                size={size}
+                color={color}
+              />
+            );
+          }
+
+          if (route.name === 'Search') {
+            return (
+              <Ionicons
+                name="search-outline"
+                size={size}
+                color={color}
+              />
+            );
+          }
+
+          return (
+            <Ionicons
+              name="person-outline"
+              size={size}
+              color={color}
+            />
+          );
+        },
+      })}
     >
       <Tab.Screen name="Feed" component={FeedScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />

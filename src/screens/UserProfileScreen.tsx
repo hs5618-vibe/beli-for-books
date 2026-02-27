@@ -16,6 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { Avatar } from '../components/Avatar';
+import { TasteMatchBadge } from '../components/TasteMatchBadge';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../services/analytics';
 import {
@@ -175,6 +176,9 @@ export function UserProfileScreen() {
           <View style={styles.headerMeta}>
             <Text style={styles.displayName}>{profile.displayName}</Text>
             <Text style={styles.subTitle}>{profile.ratingsCount} ratings</Text>
+            <View style={styles.tasteBadgeWrap}>
+              <TasteMatchBadge percentage={profile.tasteMatchPercentage} />
+            </View>
           </View>
         </View>
 
@@ -262,6 +266,7 @@ const styles = StyleSheet.create({
   headerMeta: { flex: 1 },
   displayName: { fontSize: 20, fontWeight: '700', color: '#111827' },
   subTitle: { marginTop: 3, color: '#6B7280', fontSize: 13 },
+  tasteBadgeWrap: { marginTop: 8 },
   followButton: {
     backgroundColor: '#111827',
     borderRadius: 10,

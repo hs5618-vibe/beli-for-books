@@ -8,6 +8,7 @@ export type FeedItemUser = {
   id: string;
   displayName: string;
   avatarUrl?: string;
+  tasteMatchPercentage?: number | null;
 };
 
 export type FeedItemBook = {
@@ -28,4 +29,3 @@ export type FeedItem = {
   readingStatus?: ReadingStatus;
   createdAt: string;
 };
-
