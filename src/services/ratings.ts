@@ -168,6 +168,57 @@ async function upsertReadingStatus(params: {
   return statusResponse.data?.id;
 }
 
+export async function setReadingStatusForBook(params: {
+  authUserId: string;
+  book: BookSummary;
+  readingStatus?: ReadingStatus;
+}): Promise<void> {
+  const appUserId = await getAppUserId(params.authUserId);
+  await ensureBook(params.book);
+
+  const existingStatusResponse = await supabase
+    .from('book_statuses')
+    .select('status')
+    .eq('user_id', appUserId)
+    .eq('book_id', params.book.id)
+    .maybeSingle();
+
+  if (existingStatusResponse.error) {
+    throw new Error(existingStatusResponse.error.message);
+  }
+
+  const previousStatus = existingStatusResponse.data?.status;
+  const statusId = await upsertReadingStatus({
+    appUserId,
+    bookId: params.book.id,
+    readingStatus: params.readingStatus,
+  });
+
+  const statusChanged = (previousStatus ?? undefined) !== params.readingStatus;
+  if (!statusChanged) {
+    return;
+  }
+
+  await writeActivity({
+    appUserId,
+    bookId: params.book.id,
+    activityType: 'StatusChanged',
+    statusId,
+  });
+
+  await trackEvent({
+    event: 'book_status_changed',
+    authUserId: params.authUserId,
+    appUserId,
+    properties: {
+      book_id: params.book.id,
+      previous_status: previousStatus ?? null,
+      reading_status: params.readingStatus ?? null,
+      source: 'recommendation_modal',
+    },
+  });
+}
+
 async function writeActivity(params: {
   appUserId: string;
   bookId: string;

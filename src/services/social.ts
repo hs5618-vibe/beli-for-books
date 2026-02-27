@@ -221,6 +221,7 @@ export async function getUserProfileView(
       'id,activity_type,created_at,book:books(id,title,author,cover_url),rating:ratings(sentiment),status:book_statuses(status)',
     )
     .eq('actor_user_id', targetAppUserId)
+    .in('activity_type', ['Rated', 'Added'])
     .order('created_at', { ascending: false })
     .limit(15);
 

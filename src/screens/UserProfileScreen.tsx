@@ -16,7 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { Avatar } from '../components/Avatar';
-import { TasteMatchBadge } from '../components/TasteMatchBadge';
+import { TasteProfile } from '../components/TasteProfile';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../services/analytics';
 import {
@@ -54,8 +54,6 @@ function activityLabel(activity: SocialActivity): string {
   switch (activity.activityType) {
     case 'Rated':
       return activity.sentiment ? `rated ${activity.sentiment}` : 'rated';
-    case 'StatusChanged':
-      return activity.readingStatus ? `set status ${activity.readingStatus}` : 'updated status';
     default:
       return 'added';
   }
@@ -176,9 +174,6 @@ export function UserProfileScreen() {
           <View style={styles.headerMeta}>
             <Text style={styles.displayName}>{profile.displayName}</Text>
             <Text style={styles.subTitle}>{profile.ratingsCount} ratings</Text>
-            <View style={styles.tasteBadgeWrap}>
-              <TasteMatchBadge percentage={profile.tasteMatchPercentage} />
-            </View>
           </View>
         </View>
 
@@ -218,15 +213,12 @@ export function UserProfileScreen() {
           </Pressable>
 
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{profile.booksReadCount}</Text>
-            <Text style={styles.statLabel}>Read</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{profile.booksWantToTryCount}</Text>
-            <Text style={styles.statLabel}>Want</Text>
+            <Text style={styles.statValue}>{profile.ratingsCount}</Text>
+            <Text style={styles.statLabel}>Ratings</Text>
           </View>
         </View>
+
+        <TasteProfile userId={profile.appUserId} />
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
@@ -266,7 +258,6 @@ const styles = StyleSheet.create({
   headerMeta: { flex: 1 },
   displayName: { fontSize: 20, fontWeight: '700', color: '#111827' },
   subTitle: { marginTop: 3, color: '#6B7280', fontSize: 13 },
-  tasteBadgeWrap: { marginTop: 8 },
   followButton: {
     backgroundColor: '#111827',
     borderRadius: 10,

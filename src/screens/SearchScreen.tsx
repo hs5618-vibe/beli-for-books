@@ -33,7 +33,7 @@ export function SearchScreen() {
   const [error, setError] = useState<string | null>(null);
   const searchRequestIdRef = useRef(0);
 
-  const canSearch = useMemo(() => query.trim().length > 0, [query]);
+  const canSearch = useMemo(() => query.trim().length >= 2, [query]);
 
   const runSearch = useCallback(async (targetQuery: string) => {
     const requestId = searchRequestIdRef.current + 1;
@@ -158,7 +158,7 @@ export function SearchScreen() {
           <View>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Text style={styles.emptyState}>
-              {canSearch ? 'No books found yet.' : 'Search for a book to rate.'}
+              {canSearch ? 'No books found yet.' : 'Enter at least 2 characters to search.'}
             </Text>
           </View>
         }

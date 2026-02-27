@@ -131,6 +131,7 @@ async function fetchRecentActivity(appUserId: string): Promise<ProfileActivity[]
     .from('activities')
     .select('id,activity_type,created_at,book:books(id,title,author,cover_url)')
     .eq('actor_user_id', appUserId)
+    .in('activity_type', ['Rated', 'Added'])
     .order('created_at', { ascending: false })
     .limit(12);
 

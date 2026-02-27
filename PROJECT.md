@@ -48,3 +48,25 @@ Architecture principles:
 
 Goal:
 Ship MVP quickly, then iterate.
+
+## Recommendation Engine (Non-AI)
+
+The app now uses collaborative filtering for instant post-rating recommendations via:
+`public.get_recommendations_for_user(target_user_id uuid)`.
+
+Primary tuning knobs live in:
+`supabase/migrations/20260227_recommendations_cf.sql`
+
+- Neighbor count `K`: currently `20`
+- Minimum overlap: currently `3` shared rated books
+- Minimum taste match: currently `60%`
+- Positive ratings only:
+  - categorical: `Loved` and `Liked`
+  - numeric fallback: `numeric_score >= 7`
+- Rating weights:
+  - `Loved = 1.0`
+  - `Liked = 0.6`
+  - numeric fallback: `numeric_score / 10`
+
+Output is top `3` unrated books with an explainable reason.
+If user data is sparse or no qualified neighbors exist, fallback is trending (last 14 days) with reason `Popular this week`.

@@ -18,6 +18,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
+import { TasteProfile } from '../components/TasteProfile';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../services/analytics';
 import {
@@ -64,8 +65,6 @@ function activityLabel(activity: ProfileActivity): string {
   switch (activity.activityType) {
     case 'Rated':
       return 'rated';
-    case 'StatusChanged':
-      return 'updated status for';
     case 'Added':
       return 'added';
     default:
@@ -320,19 +319,13 @@ export function ProfileScreen() {
               <Text style={styles.statLabel}>Rank</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{dashboard.booksReadCount}</Text>
-              <Text style={styles.statLabel}>Books Read</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{dashboard.booksWantToTryCount}</Text>
-              <Text style={styles.statLabel}>Want to Try</Text>
-            </View>
-            <View style={styles.statItem}>
               <Text style={styles.statValue}>{dashboard.streakWeeks}</Text>
               <Text style={styles.statLabel}>Week Streak</Text>
             </View>
           </View>
         </View>
+
+        <TasteProfile userId={dashboard.appUserId} />
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Recs For You</Text>

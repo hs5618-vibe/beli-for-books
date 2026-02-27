@@ -9,17 +9,21 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
+import { RecommendationModal } from '../components/RecommendationModal';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../services/analytics';
 import { getBookDetailInsights, type BookDetailInsights } from '../services/bookDetail';
+import { getRecommendationsForUser, type Recommendation } from '../services/recommendations';
 import {
   getBookRatingState,
   getPairwisePrompts,
+  setReadingStatusForBook,
   submitComparisonResult,
   upsertRating,
   type ComparisonSelection,
@@ -81,6 +85,7 @@ function activityLabel(params: {
 }
 
 export function BookDetailScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
   const route = useRoute<RouteProp<RootStackParamList, 'BookDetail'>>();
   const [sentiment, setSentiment] = useState<Sentiment | undefined>();
@@ -92,12 +97,39 @@ export function BookDetailScreen() {
   const [savedRating, setSavedRating] = useState<RatingRecord | null>(null);
   const [prompts, setPrompts] = useState<PairwiseComparisonPrompt[]>([]);
   const [promptIndex, setPromptIndex] = useState(0);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [isRecommendationModalVisible, setIsRecommendationModalVisible] = useState(false);
+  const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false);
+  const [recommendationsError, setRecommendationsError] = useState<string | null>(null);
   const [insights, setInsights] = useState<BookDetailInsights | null>(null);
   const [isInsightsLoading, setIsInsightsLoading] = useState(true);
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
   const book = route.params?.book;
   const activePrompt = useMemo(() => prompts[promptIndex], [promptIndex, prompts]);
+
+  function openRecommendationModalWithLoading() {
+    setRecommendations([]);
+    setRecommendationsError(null);
+    setIsRecommendationModalVisible(true);
+    setIsRecommendationsLoading(true);
+  }
+
+  async function loadRecommendations(authUserId: string) {
+    try {
+      const nextRecommendations = await getRecommendationsForUser(authUserId);
+      setRecommendations(nextRecommendations.slice(0, 3));
+    } catch (recommendationError) {
+      setRecommendations([]);
+      setRecommendationsError(
+        recommendationError instanceof Error
+          ? recommendationError.message
+          : 'Could not load recommendations right now.',
+      );
+    } finally {
+      setIsRecommendationsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -251,6 +283,8 @@ export function BookDetailScreen() {
       const refreshedInsights = await getBookDetailInsights(user.id, book.id);
       setInsights(refreshedInsights);
       setInsightsError(null);
+      openRecommendationModalWithLoading();
+      void loadRecommendations(user.id);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Failed to save rating');
     } finally {
@@ -455,6 +489,48 @@ export function BookDetailScreen() {
           <Text style={styles.comparisonDone}>Comparisons complete. Score will keep refining.</Text>
         ) : null}
       </ScrollView>
+
+      <RecommendationModal
+        visible={isRecommendationModalVisible}
+        recommendations={recommendations}
+        isLoading={isRecommendationsLoading}
+        errorMessage={recommendationsError}
+        onClose={() => {
+          setIsRecommendationModalVisible(false);
+        }}
+        onPressSave={async (recommendation) => {
+          if (!user?.id) {
+            return;
+          }
+          try {
+            await setReadingStatusForBook({
+              authUserId: user.id,
+              book: {
+                id: recommendation.id,
+                title: recommendation.title,
+                author: recommendation.author,
+                coverUrl: recommendation.coverUrl,
+              },
+              readingStatus: 'WantToRead',
+            });
+          } catch (statusError) {
+            setRecommendationsError(
+              statusError instanceof Error ? statusError.message : 'Could not save this recommendation.',
+            );
+          }
+        }}
+        onPressViewDetails={(recommendation) => {
+          setIsRecommendationModalVisible(false);
+          navigation.push('BookDetail', {
+            book: {
+              id: recommendation.id,
+              title: recommendation.title,
+              author: recommendation.author,
+              coverUrl: recommendation.coverUrl,
+            },
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }
